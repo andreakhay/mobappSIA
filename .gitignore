@@ -1,0 +1,14 @@
+# Dependencies for a typical Expo React Native project
+node_modules/
+.expo/
+.expo-shared/
+.expo-web/
+# macOS / Windows system files
+.DS_Store
+Thumbs.db
+# IDE / editor folders
+.vscode/
+.idea/
+# Environment files with secrets
+.env
+.env.local

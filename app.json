@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Diocese of Camarines Norte",
+    "slug": "diocese-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.diocese"
+    },
+    "android": {
+      "package": "com.example.diocese"
+    },
+    "web": {},
+    "extra": {
+      "SUPABASE_URL": "https://<YOUR_TEMP_PROJECT>.supabase.co",
+      "SUPABASE_ANON_KEY": "<YOUR_TEMP_ANON_KEY>"
+    }
+  }
+}
