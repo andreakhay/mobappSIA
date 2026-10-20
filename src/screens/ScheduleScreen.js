@@ -1,18 +1,45 @@
 // src/screens/ScheduleScreen.js
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useFavorites } from "../context/FavoritesContext";
 import LanguageToggle from "../components/LanguageToggle";
 import { PARISHES_DATA } from "../data/parishesData";
+import { getParishes } from "../services/parishService";
 
 export default function ScheduleScreen() {
   const { language, t } = useLanguage();
   const { isFavorite } = useFavorites();
+  const [parishes, setParishes] = useState(PARISHES_DATA);
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const current = PARISHES_DATA[selectedIdx] || PARISHES_DATA[0];
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getParishes();
+        if (data && data.length > 0) {
+          setParishes(data);
+        }
+      } catch (err) {
+        console.warn("ScheduleScreen load error:", err);
+      }
+    }
+    load();
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const data = await getParishes(true);
+      if (data && data.length > 0) setParishes(data);
+    } catch (_) {}
+    setRefreshing(false);
+  };
+
+  const current = parishes[selectedIdx] || parishes[0] || PARISHES_DATA[0];
 
   const sundayMasses = current.masses?.sunday || ["6:00 AM", "8:00 AM", "5:00 PM"];
   const weekdayMasses = current.masses?.weekdays || ["6:00 AM"];
@@ -21,7 +48,18 @@ export default function ScheduleScreen() {
     : (current.reconciliation || t("schedule.noConfessions"));
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 30 }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 30 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[COLORS.crimson]}
+          tintColor={COLORS.crimson}
+        />
+      }
+    >
       {/* Header with Language Toggle */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
@@ -37,7 +75,7 @@ export default function ScheduleScreen() {
       <View style={styles.contentWrap}>
         {/* Parish Selector Pills */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>
-          {PARISHES_DATA.map((item, idx) => {
+          {parishes.map((item, idx) => {
             const isSelected = idx === selectedIdx;
             const isFav = isFavorite(item.id);
             return (

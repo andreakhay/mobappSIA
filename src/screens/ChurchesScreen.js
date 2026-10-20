@@ -1,5 +1,5 @@
 // src/screens/ChurchesScreen.js
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,15 +10,16 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { supabase } from "../supabaseClient";
 import { COLORS } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useFavorites } from "../context/FavoritesContext";
 import LanguageToggle from "../components/LanguageToggle";
 import { PARISHES_DATA } from "../data/parishesData";
+import { getParishes } from "../services/parishService";
 import ParishDetailScreen from "./ParishDetailScreen";
 
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -46,32 +47,34 @@ export default function ChurchesScreen({ route }) {
   const [userLocation, setUserLocation] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
     if (route?.params?.parish) {
       setSelectedParish(route.params.parish);
     }
   }, [route?.params]);
 
-  useEffect(() => {
-    async function fetchParishes() {
-      if (!supabase) return;
-      try {
-        const { data, error } = await supabase
-          .from("parishes")
-          .select("id, name, municipality, vicariate, established, hero_image_url, logo_url, priest_name, priest_role");
-        if (!error && data && data.length > 0) {
-          const merged = PARISHES_DATA.map((local) => {
-            const remoteMatch = data.find((r) => r.id === local.id || r.name === local.name);
-            return remoteMatch ? { ...local, ...remoteMatch } : local;
-          });
-          setParishes(merged);
-        }
-      } catch (err) {
-        console.warn("Supabase query error:", err);
+  const loadParishes = useCallback(async (force = false) => {
+    try {
+      const data = await getParishes(force);
+      if (data && data.length > 0) {
+        setParishes(data);
       }
+    } catch (err) {
+      console.warn("Failed to load parishes from API, keeping fallback:", err);
     }
-    fetchParishes();
   }, []);
+
+  useEffect(() => {
+    loadParishes(false);
+  }, [loadParishes]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadParishes(true);
+    setRefreshing(false);
+  };
 
   // Request user GPS when "nearest" is chosen
   const handleNearestFilter = async () => {
@@ -253,6 +256,14 @@ export default function ChurchesScreen({ route }) {
         data={filteredParishes}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.crimson]}
+            tintColor={COLORS.crimson}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={36} color={COLORS.textMuted} style={{ marginBottom: 8 }} />

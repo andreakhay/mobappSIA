@@ -1,5 +1,5 @@
 // src/screens/HomeScreen.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,48 +10,62 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../supabaseClient";
 import { COLORS } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useFavorites } from "../context/FavoritesContext";
 import LanguageToggle from "../components/LanguageToggle";
 import { PARISHES_DATA } from "../data/parishesData";
-
-const FEATURED_PARISH = PARISHES_DATA[0];
+import { getParishes } from "../services/parishService";
 
 export default function HomeScreen({ navigation }) {
   const { language, t } = useLanguage();
   const { favorites, isFavorite } = useFavorites();
   const [parishes, setParishes] = useState(PARISHES_DATA);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function fetchParishes() {
-      if (!supabase) return;
-      try {
-        const { data, error } = await supabase.from("parishes").select("id, name, hero_image_url, municipality, vicariate, patron").limit(10);
-        if (!error && data && data.length > 0) {
-          const merged = PARISHES_DATA.map((local) => {
-            const remoteMatch = data.find((r) => r.id === local.id || r.name === local.name);
-            return remoteMatch ? { ...local, ...remoteMatch } : local;
-          });
-          setParishes(merged);
-        }
-      } catch (err) {
-        console.warn("Supabase query error:", err);
+  const loadParishes = useCallback(async (force = false) => {
+    try {
+      const data = await getParishes(force);
+      if (data && data.length > 0) {
+        setParishes(data);
       }
+    } catch (err) {
+      console.warn("HomeScreen loadParishes error:", err);
     }
-    fetchParishes();
   }, []);
 
-  const featuredTagline = typeof FEATURED_PARISH.tagline === "object"
-    ? (FEATURED_PARISH.tagline[language] || FEATURED_PARISH.tagline.en)
-    : FEATURED_PARISH.tagline;
+  useEffect(() => {
+    loadParishes(false);
+  }, [loadParishes]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadParishes(true);
+    setRefreshing(false);
+  };
+
+  const featured = parishes[0] || PARISHES_DATA[0];
+  const featuredTagline = typeof featured.tagline === "object"
+    ? (featured.tagline[language] || featured.tagline.en)
+    : featured.tagline;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[COLORS.crimson]}
+          tintColor={COLORS.crimson}
+        />
+      }
+    >
       {/* Main Diocesan Title Header with Language Toggle */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
@@ -70,27 +84,29 @@ export default function HomeScreen({ navigation }) {
         <TouchableOpacity
           style={styles.featuredCard}
           activeOpacity={0.9}
-          onPress={() => navigation.navigate("Churches", { parish: FEATURED_PARISH })}
+          onPress={() => navigation.navigate("Churches", { parish: featured })}
         >
-          <Image source={{ uri: FEATURED_PARISH.heroImage }} style={styles.featuredImage} resizeMode="cover" />
+          <Image source={{ uri: featured.heroImage }} style={styles.featuredImage} resizeMode="cover" />
           <View style={styles.featuredOverlay} />
 
-          <Image source={{ uri: FEATURED_PARISH.logoImage }} style={styles.featuredLogo} resizeMode="contain" />
+          {featured.logoImage ? (
+            <Image source={{ uri: featured.logoImage }} style={styles.featuredLogo} resizeMode="contain" />
+          ) : null}
 
           <View style={styles.featuredBody}>
             <View style={styles.featuredPatronRow}>
               <Ionicons name="sparkles" size={13} color={COLORS.gold} />
-              <Text style={styles.featuredPatronText}>{FEATURED_PARISH.vicariate.toUpperCase()}</Text>
+              <Text style={styles.featuredPatronText}>{(featured.vicariate || "").toUpperCase()}</Text>
             </View>
 
-            <Text style={styles.featuredName}>{FEATURED_PARISH.name}</Text>
-            <Text style={styles.featuredAltName}>{FEATURED_PARISH.altName}</Text>
+            <Text style={styles.featuredName}>{featured.name}</Text>
+            {featured.altName ? <Text style={styles.featuredAltName}>{featured.altName}</Text> : null}
             <Text style={styles.featuredTagline}>{featuredTagline}</Text>
 
             <View style={styles.featuredFooter}>
               <View style={styles.priestBadge}>
                 <Ionicons name="person-circle" size={18} color={COLORS.gold} style={{ marginRight: 5 }} />
-                <Text style={styles.priestBadgeText}>{FEATURED_PARISH.priest.name}</Text>
+                <Text style={styles.priestBadgeText}>{featured.priest?.name || "Parish Priest"}</Text>
               </View>
 
               <View style={styles.viewProfileBtn}>

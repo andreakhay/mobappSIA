@@ -1,5 +1,5 @@
 // src/screens/MapScreen.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,8 +16,7 @@ import { COLORS } from "../theme";
 import { useLanguage } from "../i18n/LanguageContext";
 import LanguageToggle from "../components/LanguageToggle";
 import { PARISHES_DATA } from "../data/parishesData";
-
-const PARISH_LIST = PARISHES_DATA;
+import { getParishes } from "../services/parishService";
 
 const TOWN_CENTERS = [
   { name: "Daet Centro / Provincial Capitol", lat: 14.1147, lng: 122.9553 },
@@ -48,12 +47,28 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
 
 export default function MapScreen() {
   const { language, t } = useLanguage();
-  const [selectedParish, setSelectedParish] = useState(PARISH_LIST[0]);
+  const [parishes, setParishes] = useState(PARISHES_DATA);
+  const [selectedParish, setSelectedParish] = useState(PARISHES_DATA[0]);
   const [origin, setOrigin] = useState(null);
   const [travelMode, setTravelMode] = useState("driving"); // "driving", "walking", "transit"
   const [isLocating, setIsLocating] = useState(false);
   const [showTownList, setShowTownList] = useState(false);
   const [showParishPicker, setShowParishPicker] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getParishes();
+        if (data && data.length > 0) {
+          setParishes(data);
+          setSelectedParish((prev) => data.find((p) => p.id === prev.id) || data[0]);
+        }
+      } catch (err) {
+        console.warn("MapScreen load error:", err);
+      }
+    }
+    load();
+  }, []);
 
   // Compute route estimates
   let routeStats = null;
@@ -175,7 +190,7 @@ export default function MapScreen() {
           {/* Parish Dropdown List */}
           {showParishPicker && (
             <View style={styles.parishListDropdown}>
-              {PARISH_LIST.map((p) => {
+              {parishes.map((p) => {
                 const isSelected = p.id === selectedParish.id;
                 return (
                   <TouchableOpacity
